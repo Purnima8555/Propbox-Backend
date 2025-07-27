@@ -12,7 +12,7 @@ const router = express.Router();
 
 router.post("/create-checkout-session", authenticateToken, async (req, res) => {
   try {
-    const { user_id, items, deliveryFee, total_price } = req.body;
+    const { user_id, items, deliveryFee, total_price, successUrl } = req.body;
     const tokenUser = req.user;
 
     if (tokenUser.userId !== user_id) {
@@ -78,11 +78,14 @@ router.post("/create-checkout-session", authenticateToken, async (req, res) => {
       return res.status(400).json({ message: "Total mismatch. Possible tampering detected." });
     }
 
+    // Use successUrl from frontend if provided, else default to cart success page
+    const stripeSuccessUrl = successUrl || 'http://localhost:5173/payment-success?session_id={CHECKOUT_SESSION_ID}';
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: lineItems,
       mode: "payment",
-      success_url: 'http://localhost:5173/payment-success?session_id={CHECKOUT_SESSION_ID}',
+      success_url: stripeSuccessUrl,
       cancel_url: `http://localhost:5173/cancel`,
       metadata: {
         user_id,
@@ -131,51 +134,12 @@ router.post("/webhook", express.raw({ type: "application/json" }), async (req, r
   }
 
   if (event.type === "checkout.session.completed") {
-    const session = event.data.object;
-
-    try {
-      const { user_id, items, deliveryFee, total_price } = session.metadata;
-      const parsedItems = JSON.parse(items);
-
-      // Check if order already exists to avoid duplicates
-      const existingOrder = await Order.findOne({ paymentIntentId: session.payment_intent });
-      if (existingOrder) {
-        console.log(`Order already exists for paymentIntentId: ${session.payment_intent}`);
-        return res.json({ received: true });
-      }
-
-      // Create order
-      const orderData = {
-        user_id,
-        items: parsedItems.map((item) => ({
-          prop_id: item.prop_id,
-          quantity: item.quantity,
-          type: item.type,
-          rentalDays: item.rentalDays || 0,
-        })),
-        deliveryFee: parseFloat(deliveryFee),
-        total_price: parseFloat(total_price),
-        paymentMethod: "online",
-        paymentStatus: "done",
-        paymentIntentId: session.payment_intent,
-        orderStatus: "pending",
-      };
-
-      const order = new Order(orderData);
-      await order.save();
-
-      // Clear cart
-      await Cart.findOneAndUpdate({ user_id }, { items: [] });
-
-      console.log(`Order created via webhook: ${order._id}`);
-      res.json({ received: true });
-    } catch (err) {
-      console.error("Webhook order creation failed:", err);
-      res.status(500).json({ message: "Webhook order creation failed", error: err.message });
-    }
-  } else {
-    res.json({ received: true });
+    // No need to create order here since frontend handles it
+    console.log("🔁 Stripe webhook received: checkout.session.completed – order already handled by frontend.");
+    return res.json({ received: true });
   }
+
+  res.json({ received: true });
 });
 
 module.exports = router;

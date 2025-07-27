@@ -1,4 +1,5 @@
 const Notification = require("../model/notification");
+const mongoose = require("mongoose");
 
 // Create a notification
 const createNotification = async (userId, relatedId, message, type = "info", relatedModel = null) => {
@@ -69,22 +70,97 @@ const patchMarkAsRead = async (req, res) => {
     const { id } = req.params;
 
     if (!userId) {
+      console.error("No userId in token");
       return res.status(401).json({ message: "User ID not found in token" });
     }
 
-    console.log("Marking notification as read for userId:", userId, "notificationId:", id);
-    const notification = await Notification.findOne({ _id: id, userId });
+    if (!mongoose.isValidObjectId(userId)) {
+      console.error("Invalid userId format:", userId);
+      return res.status(400).json({ message: "Invalid user ID format" });
+    }
+
+    if (!mongoose.isValidObjectId(id)) {
+      console.error("Invalid notificationId format:", id);
+      return res.status(400).json({ message: "Invalid notification ID format" });
+    }
+
+    console.log("Marking notification as read - userId:", userId, "notificationId:", id);
+
+    const userIdObject = new mongoose.Types.ObjectId(userId);
+    const notificationIdObject = new mongoose.Types.ObjectId(id);
+    const notification = await Notification.findOne({ _id: notificationIdObject, userId: userIdObject });
+
     if (!notification) {
+      console.error("Notification not found or not authorized for id:", id, "userId:", userId);
       return res.status(404).json({ message: "Notification not found or not authorized" });
     }
 
-    notification.read = true;
-    await notification.save();
+    console.log("Found notification:", notification);
 
-    res.status(200).json({ message: "Notification marked as read", notification });
+    if (notification.read) {
+      console.log("Notification already marked as read:", id);
+      return res.status(200).json({ message: "Notification already marked as read", notification });
+    }
+
+    notification.read = true;
+    const savedNotification = await notification.save();
+    console.log("Notification saved with read=true:", savedNotification);
+
+    res.status(200).json({ message: "Notification marked as read", notification: savedNotification });
   } catch (error) {
-    console.error("Error marking notification as read:", error);
-    res.status(500).json({ message: "Error marking notification as read", error: error.message });
+    console.error("Error marking notification as read:", {
+      message: error.message,
+      stack: error.stack,
+    });
+    res.status(500).json({
+      message: "Error marking notification as read",
+      error: error.message,
+    });
+  }
+};
+
+// Mark all notifications as read for a user
+const markAllAsRead = async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      console.error("No userId in token");
+      return res.status(401).json({ message: "User ID not found in token" });
+    }
+
+    if (!mongoose.isValidObjectId(userId)) {
+      console.error("Invalid userId format:", userId);
+      return res.status(400).json({ message: "Invalid user ID format" });
+    }
+
+    console.log("Marking all notifications as read for userId:", userId);
+
+    const userIdObject = new mongoose.Types.ObjectId(userId);
+    const result = await Notification.updateMany(
+      { userId: userIdObject },
+      { $set: { read: true } }
+    );
+
+    console.log("Notifications updated:", {
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+    });
+
+    res.status(200).json({
+      message: "All notifications marked as read",
+      modifiedCount: result.modifiedCount,
+      matchedCount: result.matchedCount,
+    });
+  } catch (error) {
+    console.error("Error marking all notifications as read:", {
+      message: error.message,
+      stack: error.stack,
+    });
+    res.status(500).json({
+      message: "Error marking all notifications as read",
+      error: error.message,
+    });
   }
 };
 
@@ -125,4 +201,4 @@ const getAllForAdmin = async (req, res) => {
   }
 };
 
-module.exports = { createNotification, getByUserId, patchMarkAsRead, getAllForAdmin };
+module.exports = { createNotification, getByUserId, patchMarkAsRead, markAllAsRead, getAllForAdmin };
