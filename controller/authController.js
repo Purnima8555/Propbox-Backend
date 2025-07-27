@@ -83,49 +83,87 @@ const register = async (req, res) => {
 
 // login function
 const login = async (req, res) => {
-    const { username, password } = req.body;
+  const { username, password } = req.body;
 
-    try {
-        // Find user in creds collection
-        const cred = await Credential.findOne({ username });
-        if (!cred || !(await bcrypt.compare(password, cred.password))) {
-            return res.status(403).send("Invalid username or password");
-        }
-
-        // Retrieve user details from the Customer collection
-        const customer = await Customer.findOne({ username });
-        if (!customer) {
-            return res.status(404).send("User details not found");
-        }
-
-        // Generate JWT
-        const token = jwt.sign(
-            { userId: cred._id, username: cred.username, role: cred.role },
-            SECRET_KEY,
-            { expiresIn: '1d' }
-        );
-
-        // Create login notification
-        const loginTime = new Date().toLocaleString();
-        const notificationMessage = `You logged in successfully on ${loginTime}. If this wasn't you, please secure your account immediately.`;
-        
-        await createNotification(
-            customer._id,
-            null, // No booking ID for login notifications
-            notificationMessage
-        );
-
-        // Include userId in the response
-        res.json({
-            token,
-            username: cred.username,
-            role: cred.role,
-            userId: customer._id
-        });
-    } catch (error) {
-        res.status(500).json({ message: "Login failed", error });
+  try {
+    const cred = await Credential.findOne({ username });
+    if (!cred || !(await bcrypt.compare(password, cred.password))) {
+      return res.status(403).send("Invalid username or password");
     }
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Save OTP and expiry to user
+    cred.otp = otp;
+    cred.otpExpiresAt = otpExpiresAt;
+    await cred.save();
+
+    // Send OTP email (you can refactor your nodemailer setup)
+    const transporter = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 587,
+      secure: false,
+      auth: {
+        user: "rpurnima8555@gmail.com",
+        pass: "your_app_password_here",
+      },
+    });
+
+    await transporter.sendMail({
+      from: "rpurnima8555@gmail.com",
+      to: username, // or use customer email lookup if username is not email
+      subject: "Your Login OTP",
+      html: `<h1>Your OTP is ${otp}</h1><p>This code is valid for 10 minutes.</p>`,
+    });
+
+    return res.status(200).json({ message: "OTP sent to your email. Please verify." });
+  } catch (error) {
+    res.status(500).json({ message: "Login failed", error });
+  }
 };
+
+
+const verifyOtp = async (req, res) => {
+  const { username, otp } = req.body;
+
+  try {
+    const cred = await Credential.findOne({ username });
+    if (!cred) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!cred.otp || !cred.otpExpiresAt) {
+      return res.status(400).json({ message: "No OTP requested" });
+    }
+
+    if (cred.otp !== otp) {
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    if (cred.otpExpiresAt < new Date()) {
+      return res.status(400).json({ message: "OTP expired" });
+    }
+
+    // Clear OTP after success
+    cred.otp = null;
+    cred.otpExpiresAt = null;
+    await cred.save();
+
+    // Generate JWT token as usual
+    const token = jwt.sign(
+      { userId: cred._id, username: cred.username, role: cred.role },
+      SECRET_KEY,
+      { expiresIn: "1d" }
+    );
+
+    res.json({ token, username: cred.username, role: cred.role, userId: cred._id });
+  } catch (error) {
+    res.status(500).json({ message: "OTP verification failed", error });
+  }
+};
+
 
 const asyncHandler = require("../middleware/async");
 
@@ -355,4 +393,4 @@ const checkUserExists = async (req, res) => {
     }
 };
 
-module.exports = { register, login, deleteUser, forgotPassword, resetPassword, verifyCode, uploadImage, checkUserExists };
+module.exports = { register, login, verifyOtp, deleteUser, forgotPassword, resetPassword, verifyCode, uploadImage, checkUserExists };

@@ -13,6 +13,12 @@ const credSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    otp: {
+    type: String,
+    },
+    otpExpiresAt: {
+    type: Date,
+    },
 });
 
 const Credential = mongoose.model('creds', credSchema);
