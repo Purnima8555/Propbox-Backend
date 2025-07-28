@@ -1,12 +1,14 @@
+// config/db.js
 const mongoose = require("mongoose");
 
 const connectDB = async () => {
     try {
-        await mongoose.connect("mongodb://localhost:27017/db_propbox_system");
-        console.log("MongoDb Connected")
-    } catch (e) {
-        console.log("MongoDb not Connected");
+        const conn = await mongoose.connect(process.env.LOCAL_DATABASE_URI);
+        console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+    } catch (err) {
+        console.error("❌ MongoDB connection error:", err.message);
+        process.exit(1); // Exit on failure
     }
-}
+};
 
-module.exports=connectDB;
+module.exports = connectDB;

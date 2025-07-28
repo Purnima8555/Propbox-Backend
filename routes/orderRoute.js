@@ -9,7 +9,7 @@ const {
   getCurrentlyReading,
   getOrderByPaymentIntent,
 } = require("../controller/orderController");
-const { authenticateToken } = require("../security/authorization");
+const { authenticateToken, authorizeRole  } = require("../security/authorization");
 const Order = require("../model/order");
 
 const router = express.Router();
@@ -28,10 +28,10 @@ router.get("/check/:paymentIntentId", authenticateToken, async (req, res) => {
   }
 });
 
+router.get("/", authenticateToken, authorizeRole("admin"), getAllOrders);
+router.patch("/status/:id", authenticateToken, authorizeRole("admin"), updateOrderStatus);
+router.delete("/:id", authenticateToken, authorizeRole("admin"), deleteOrder);
 
-router.get("/", authenticateToken, getAllOrders);
-router.patch("/status/:id", authenticateToken, updateOrderStatus);
-router.delete("/:id", authenticateToken, deleteOrder);
 router.get("/counts/:user_id", authenticateToken, getOrderTypeCounts);
 router.get("/currently-reading/:user_id", authenticateToken, getCurrentlyReading);
 

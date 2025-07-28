@@ -1,7 +1,7 @@
 const express = require("express");
 const path = require("path");
 const connectDb = require("./config/db");
-const paymentRouter = require("./routes/paymentRoute"); // Move up early
+const paymentRouter = require("./routes/paymentRoute");
 const bodyParser = require("body-parser");
 
 const customerRouter = require("./routes/customerRoute");
@@ -13,13 +13,14 @@ const cartRouter = require("./routes/cartRoute");
 const orderRouter = require("./routes/orderRoute");
 const propRequestRouter = require("./routes/propRequestRoute");
 const notificationRouter = require("./routes/notificationRoute");
+const activityLogRouter = require("./routes/activityLogRoute");
 
 const app = express();
 connectDb();
 
 const cors = require("cors");
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: "https://localhost:5173",
   methods: "GET,POST,PUT,PATCH,DELETE",
   allowedHeaders: "Content-Type,Authorization"
 }));
@@ -45,5 +46,6 @@ app.use("/api/cart", cartRouter);
 app.use("/api/orders", orderRouter);
 app.use("/api/prop-requests", propRequestRouter);
 app.use("/api/notifications", notificationRouter);
+app.use("/api/activity-logs", activityLogRouter);
 
 module.exports = app;

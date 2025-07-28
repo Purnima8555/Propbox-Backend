@@ -26,7 +26,7 @@ function authenticateToken(req, res, next) {
 
 function authorizeRole(role) {
   return (req, res, next) => {
-    if (req.user.role !== role) {
+    if (req.user.role.toLowerCase() !== role.toLowerCase()) {
       console.error("Access denied: Insufficient permissions for role:", req.user.role);
       return res.status(403).json({ message: "Access denied: Insufficient permissions" });
     }

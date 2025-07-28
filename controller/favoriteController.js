@@ -1,4 +1,5 @@
 const Favorite = require("../model/favorite");
+const logActivity = require("../middleware/logActivity");
 
 // Add a prop to favorites
 const addFavorite = async (req, res) => {
@@ -6,7 +7,7 @@ const addFavorite = async (req, res) => {
     const { user_id, prop_id } = req.body;
 
     // Check if the prop is already in favorites
-    let favorite = await Favorite.findOne({ user_id, prop_id });
+    const favorite = await Favorite.findOne({ user_id, prop_id });
     if (favorite) {
       return res.status(400).json({ message: "Prop is already in favorites" });
     }
@@ -14,12 +15,21 @@ const addFavorite = async (req, res) => {
     const newFavorite = new Favorite({ user_id, prop_id, isFavorite: true });
     await newFavorite.save();
 
+    // Log the activity
+    await logActivity({
+      userId: user_id,
+      action: "add_favorite",
+      role: req.user?.role || "User",
+      details: `User added property ${prop_id} to favorites.`,
+    });
+
     res.status(201).json({ message: "Prop added to favorites", favorite: newFavorite });
   } catch (err) {
     console.error("Error adding favorite:", err);
     res.status(500).json({ message: "Error adding favorite", error: err });
   }
 };
+
 
 // Get all favorite props for a user
 const getFavoritesByUser = async (req, res) => {

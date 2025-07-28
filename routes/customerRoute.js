@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { findAll, save, findById, update, getCustomerCount, deleteById, getAndUpdate } = require("../controller/customerController");
 const CustomerValidation = require("../validation/customerValidation");
-const { authenticateToken } = require("../security/authorization");
+const { authenticateToken, authorizeRole } = require("../security/authorization");
 const multer = require("multer");
 const fs = require("fs");
 const path = require("path");
@@ -33,9 +33,10 @@ const upload = multer({
   },
 });
 
-router.get("/", findAll);
 router.get("/count", getCustomerCount);
-router.post("/save", upload.single("image"), authenticateToken, save);
+router.get("/", authenticateToken, authorizeRole("admin"), findAll);
+router.post("/save", authenticateToken, authorizeRole("admin"), upload.single("image"), save);
+
 router.delete("/:id", authenticateToken, deleteById);
 router.get("/:id", findById);
 router.put("/update/:id", authenticateToken, update);

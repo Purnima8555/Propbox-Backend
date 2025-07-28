@@ -1,6 +1,7 @@
 const Customer = require("../model/customer");
 const Feedback = require("../model/feedback");
 const mongoose = require("mongoose");
+const logActivity = require("../middleware/logActivity");
 
 // Add Feedback for a Prop
 const addFeedback = async (req, res) => {
@@ -19,6 +20,14 @@ const addFeedback = async (req, res) => {
     });
 
     await newFeedback.save();
+
+    // Log activity
+    await logActivity({
+      userId: user_id,
+      action: "add_feedback",
+      role: req.user?.role || "User",
+      details: `User gave ${rating} star(s) to property ${prop_id}.`,
+    });
 
     // Fetch username and image from Customer
     const user = await Customer.findById(user_id).select("username image");
@@ -47,6 +56,7 @@ const addFeedback = async (req, res) => {
     res.status(500).json({ message: "Error adding feedback", error: err.message });
   }
 };
+
 
 // Get All Feedback
 const getAllFeedback = async (req, res) => {

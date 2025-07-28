@@ -1,6 +1,7 @@
 const PropRequest = require("../model/propRequest");
 const Customer = require("../model/customer");
 const Notification = require("../model/notification");
+const logActivity = require("../middleware/logActivity");
 
 // Submit a new prop request
 const submitPropRequest = async (req, res) => {
@@ -30,6 +31,14 @@ const submitPropRequest = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
+
+    // ✅ Log activity
+    await logActivity({
+      userId: user_id,
+      action: "submit_prop_request",
+      role: user.role || "User",
+      details: `User submitted request for "${prop_name}" with urgency "${urgency || "normal"}".`,
+    });
 
     const userNotification = new Notification({
       userId: user_id,
@@ -62,6 +71,7 @@ const submitPropRequest = async (req, res) => {
     res.status(500).json({ message: "Error submitting prop request", error: error.message });
   }
 };
+
 
 // Count of pending requests
 const getPendingPropRequestCount = async (req, res) => {

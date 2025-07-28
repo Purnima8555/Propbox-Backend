@@ -49,10 +49,10 @@ const upload = multer({
   },
 });
 
-// Routes for props
+/// Routes for props
 
 // Specific routes first
-router.get("/count", authenticateToken, getPropCount);
+router.get("/count", getPropCount);
 router.get("/new", getNewProps);
 router.get("/best/bestprops", getBestProps);
 router.get("/category/:category", getByCategory);
@@ -61,8 +61,10 @@ router.get("/search", getByPropName);
 // General routes
 router.get("/", getAllProps);
 router.get("/:id", getPropById);
-router.post("/add", upload.single("image"), addProp);
-router.put("/update/:id", upload.single("image"), authenticateToken, updateProp);
-router.delete("/delete/:id", authenticateToken, deleteProp);
+
+// Protect these routes so only admins can add, update, delete
+router.post("/add", authenticateToken, authorizeRole("admin"), upload.single("image"), addProp);
+router.put("/update/:id", authenticateToken, authorizeRole("admin"), upload.single("image"), updateProp);
+router.delete("/delete/:id", authenticateToken, authorizeRole("admin"), deleteProp);
 
 module.exports = router;

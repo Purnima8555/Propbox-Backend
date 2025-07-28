@@ -4,6 +4,7 @@ const Customer = require("../model/customer");
 const Prop = require("../model/prop");
 const Notification = require("../model/notification");
 const mongoose = require("mongoose");
+const logActivity = require("../middleware/logActivity");
 
 // Place an order
 const placeOrder = async (req, res) => {
@@ -64,6 +65,14 @@ const placeOrder = async (req, res) => {
 
     await newOrder.save();
     console.log("Order saved successfully:", newOrder._id);
+
+    // --- Activity Log here ---
+    await logActivity({
+      userId: user_id,
+      action: "order_placed",
+      role: tokenUser.role || "User",
+      details: `Order ${newOrder._id} placed with ${items.length} item(s), total price: ${total_price}`,
+    });
 
     let firstPropName;
     try {

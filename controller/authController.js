@@ -6,6 +6,7 @@ const nodemailer = require("nodemailer");
 const PasswordReset = require('../model/passwordReset');
 const upload = require("../middleware/uploads");
 const { createNotification } = require("./notificationController");
+const logActivity = require("../middleware/logActivity");
 
 const SECRET_KEY = "21e6fb393716f568bf5ab155f62379812ac5b048efdea976aa1b1699f9e7e7dd";
 
@@ -91,40 +92,69 @@ const login = async (req, res) => {
       return res.status(403).send("Invalid username or password");
     }
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const customer = await Customer.findById(cred._id);
+    if (!customer || !customer.email) {
+      return res.status(500).json({ message: "User email not found" });
+    }
 
-    // Save OTP and expiry to user
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
     cred.otp = otp;
     cred.otpExpiresAt = otpExpiresAt;
     await cred.save();
 
-    // Send OTP email (you can refactor your nodemailer setup)
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
       port: 587,
       secure: false,
       auth: {
         user: "rpurnima8555@gmail.com",
-        pass: "your_app_password_here",
-      },
+        pass: "kwvuyzwguvdohwzu"
+      }
     });
 
     await transporter.sendMail({
       from: "rpurnima8555@gmail.com",
-      to: username, // or use customer email lookup if username is not email
+      to: customer.email,
       subject: "Your Login OTP",
-      html: `<h1>Your OTP is ${otp}</h1><p>This code is valid for 10 minutes.</p>`,
+      html: `
+        <h1>Login OTP</h1>
+        <h2>${otp}</h2>
+        <p>This OTP will expire in 10 minutes.</p>
+      `
     });
 
-    return res.status(200).json({ message: "OTP sent to your email. Please verify." });
+    // ✅ Log the login attempt properly with object
+    await logActivity({
+      userId: cred._id,
+      action: "login_attempted",
+      role: cred.role,
+      details: "OTP sent to user email.",
+    });
+
+    // ✅ Create login notification
+    const loginTime = new Date().toLocaleString();
+    const notificationMessage = `You logged in successfully on ${loginTime}. If this wasn't you, please secure your account immediately.`;
+    
+    await createNotification(
+      customer._id,
+      null, // No booking ID for login notifications
+      notificationMessage
+    );
+
+    return res.status(200).json({
+      message: "OTP sent to your email. Please verify.",
+      username: cred.username
+    });
+
   } catch (error) {
-    res.status(500).json({ message: "Login failed", error });
+    console.error("❌ Login error:", error);
+    return res.status(500).json({ message: "Login failed", error });
   }
 };
 
 
+// Verify OTP function
 const verifyOtp = async (req, res) => {
   const { username, otp } = req.body;
 
@@ -288,55 +318,64 @@ const forgotPassword = async (req, res) => {
 
 // Reset Password function
 const resetPassword = async (req, res) => {
-    const { email, code, newPassword } = req.body;
+  const { email, code, newPassword } = req.body;
 
-    try {
-        // Find the reset entry using the email and code
-        const resetEntry = await PasswordReset.findOne({ email, code });
+  try {
+    // Find the reset entry using the email and code
+    const resetEntry = await PasswordReset.findOne({ email, code });
 
-        if (!resetEntry) {
-            return res.status(400).json({ message: "Invalid or expired verification code." });
-        }
-
-        // Check if the code has expired
-        const isCodeExpired = resetEntry.expiresAt < Date.now();
-        if (isCodeExpired) {
-            return res.status(400).json({ message: "Verification code has expired." });
-        }
-
-        // Hash the new password
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-        // Update the user's password in the Credential collection
-        await Credential.findByIdAndUpdate(resetEntry.userId, { password: hashedPassword });
-
-        // Delete the reset entry to prevent reuse of the code
-        await PasswordReset.findByIdAndDelete(resetEntry._id);
-
-        // Send confirmation email to the user
-        const transporter = nodemailer.createTransport({
-            service: "gmail",
-            auth: {
-                user: "rpurnima8555@gmail.com",
-                pass: "kwvuyzwguvdohwzu"
-            }
-        });
-
-        await transporter.sendMail({
-            from: "rpurnima8555@gmail.com",
-            to: email,
-            subject: "Password Successfully Updated",
-            html: `
-                <h1>Password Updated</h1>
-                <p>Your password has been successfully updated. If you did not perform this action, please contact our support team immediately.</p>
-            `
-        });
-
-        res.status(200).json({ message: "Password updated successfully and email notification sent." });
-    } catch (err) {
-        console.error("Error resetting password:", err);
-        res.status(500).json({ message: "Error resetting password", error: err });
+    if (!resetEntry) {
+      return res.status(400).json({ message: "Invalid or expired verification code." });
     }
+
+    // Check if the code has expired
+    const isCodeExpired = resetEntry.expiresAt < Date.now();
+    if (isCodeExpired) {
+      return res.status(400).json({ message: "Verification code has expired." });
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update the user's password in the Credential collection
+    await Credential.findByIdAndUpdate(resetEntry.userId, { password: hashedPassword });
+
+    // Delete the reset entry to prevent reuse of the code
+    await PasswordReset.findByIdAndDelete(resetEntry._id);
+
+    // Send confirmation email to the user
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: "rpurnima8555@gmail.com",
+        pass: "kwvuyzwguvdohwzu"
+      }
+    });
+
+    await transporter.sendMail({
+      from: "rpurnima8555@gmail.com",
+      to: email,
+      subject: "Password Successfully Updated",
+      html: `
+        <h1>Password Updated</h1>
+        <p>Your password has been successfully updated. If you did not perform this action, please contact our support team immediately.</p>
+      `
+    });
+
+    // ✅ Log password reset activity
+    await logActivity({
+      userId: resetEntry.userId,
+      action: "password_reset",
+      role: "User",  // Or fetch role if you want dynamic value
+      details: "User has successfully reset their password.",
+    });
+
+    res.status(200).json({ message: "Password updated successfully and email notification sent." });
+
+  } catch (err) {
+    console.error("Error resetting password:", err);
+    res.status(500).json({ message: "Error resetting password", error: err });
+  }
 };
 
 
