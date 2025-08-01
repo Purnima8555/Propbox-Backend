@@ -213,12 +213,12 @@ const getAndUpdate = async (req, res) => {
     }
 
     // If no updates provided, just return the customer data
-    if (!updates || Object.keys(updates).length === 0) {
+    if (!updates && !req.file) {
       return res.status(200).json(customer);
     }
 
     // Validate and handle updates
-    const { username, full_name, email, contact_no, address, role, image } = updates;
+    const { username, full_name, email, contact_no, address, role } = updates;
 
     // Check if username is being updated and already exists
     if (username && username !== customer.username) {
@@ -236,7 +236,7 @@ const getAndUpdate = async (req, res) => {
       contact_no: contact_no || customer.contact_no,
       address: address || customer.address,
       role: role || customer.role,
-      image: image || customer.image,
+      image: req.file ? req.file.filename : customer.image, // Use req.file.filename if a new image is uploaded
     };
 
     // Update Customer document
@@ -304,7 +304,7 @@ const getAndUpdate = async (req, res) => {
     console.error("Error in getAndUpdate customer:", error);
     res.status(500).json({ message: "Error in getAndUpdate customer", error: error.message });
   }
-}
+};
 
 
 // New: Get total customer count

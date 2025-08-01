@@ -79,14 +79,14 @@ router.post("/create-checkout-session", authenticateToken, async (req, res) => {
     }
 
     // Use successUrl from frontend if provided, else default to cart success page
-    const stripeSuccessUrl = successUrl || 'http://localhost:5173/payment-success?session_id={CHECKOUT_SESSION_ID}';
+    const stripeSuccessUrl = successUrl || 'https://localhost:5173/payment-success?session_id={CHECKOUT_SESSION_ID}';
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: lineItems,
       mode: "payment",
       success_url: stripeSuccessUrl,
-      cancel_url: `http://localhost:5173/cancel`,
+      cancel_url: `https://localhost:5173/cancel`,
       metadata: {
         user_id,
         items: JSON.stringify(items),

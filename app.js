@@ -16,13 +16,27 @@ const notificationRouter = require("./routes/notificationRoute");
 const activityLogRouter = require("./routes/activityLogRoute");
 
 const app = express();
+const session = require('express-session');
 connectDb();
 
 const cors = require("cors");
+const allowedOrigins = [
+  "https://localhost:5173",
+  "https://192.168.10.3:5173"
+];
+
 app.use(cors({
-  origin: "https://localhost:5173",
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = `CORS policy does not allow access from origin ${origin}`;
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
   methods: "GET,POST,PUT,PATCH,DELETE",
-  allowedHeaders: "Content-Type,Authorization"
+  allowedHeaders: "Content-Type,Authorization",
+  credentials: true, // if you use cookies/auth headers
 }));
 
 // ✅ Handle Stripe webhook BEFORE express.json middleware
